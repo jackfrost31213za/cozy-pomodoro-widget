@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cozy Pomodoro &amp; Virtual Pet Deluxe — Desktop &amp; OBS Widget</title>
+  <style>
+    :root {
+      --bg-card-rgb: 24, 24, 37;
+      --bg-opacity: 0.92;
+      --bg-panel: rgba(30, 30, 46, 0.96);
+      --border-color: #a6e3a1;
+      --accent: #a6e3a1;
+      --accent-soft: rgba(166, 227, 161, 0.16);
+      --text-main: #cdd6f4;
+      --text-muted: #9399b2;
+      --item-bg: rgba(255, 255, 255, 0.05);
+      --timer-bg: rgba(0, 0, 0, 0.24);
+      --btn-text: #11111b;
+      --font-active: 'Courier New', Courier, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --radius: 14px;
+      --widget-scale: 1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: #11111b;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    body.obs-mode, body.pip-mode {
+      background: transparent !important;
+      padding: 12px;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    body.pip-mode {
+      background: #11111b !important;
+      justify-content: center;
+    }
+
+    .studio-layout {
+      display: grid;
+      grid-template-columns: auto minmax(320px, 430px);
+      gap: 24px;
+      align-items: start;
+      max-width: 1080px;
+      width: 100%;
+    }
+
+    body.obs-mode .studio-layout,
+    body.pip-mode .studio-layout,
+    body.settings-hidden .studio-layout { display: flex; justify-content: center; max-width: 100%; }
+    body.settings-hidden .customizer-panel { display: none !important; }
+    body.obs-mode #toggleSettingsBtn, body.pip-mode #toggleSettingsBtn { display: none !important; }
+    body.obs-mode .customizer-panel,
+    body.pip-mode .customizer-panel { display: none !important; }
+
+    /* Widget Card */
+    .widget-card {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      background: rgba(var(--bg-card-rgb), var(--bg-opacity));
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(10px);
+      transition: all 0.25s ease;
+      overflow: visible;
+      zoom: var(--widget-scale);
+      resize: both;
+    }
+
+    .widget-card.break-only-hidden {
+      opacity: 0.18;
+      filter: grayscale(0.4);
+    }
+
+    .widget-card.border-dashed { border-style: dashed; }
+    .widget-card.border-minimal {
+      border-width: 1px; border-color: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    }
+    .widget-card.border-pixel { border-width: 3px; box-shadow: 6px 6px 0 var(--accent); }
+
+    .widget-card.compact { max-width: 460px; padding: 12px 16px; }
+    .widget-card.compact .widget-header { margin-bottom: 10px; padding-bottom: 8px; }
+    .widget-card.compact .timer-box {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 14px; text-align: left; padding: 10px 14px; margin-bottom: 0;
+    }
+    .widget-card.compact .timer-display { font-size: 32px; }
+    .widget-card.compact .progress-track { margin-top: 6px; }
+    .widget-card.compact .tasks-section { margin-top: 10px; }
+
+    .widget-card.pill { max-width: 340px; padding: 10px 16px; }
+    .widget-card.pill .widget-header { margin-bottom: 8px; padding-bottom: 6px; }
+    .widget-card.pill .timer-box { padding: 8px 10px; margin-bottom: 8px; }
+    .widget-card.pill .timer-display { font-size: 34px; }
+
+    .widget-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(147, 153, 178, 0.28);
+    }
+
+    .widget-title {
+      font-family: var(--font-active); font-size: 13px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--accent); display: flex; align-items: center; gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 8px var(--accent); flex-shrink: 0;
+    }
+
+    .status-dot.paused { background: var(--text-muted); box-shadow: none; }
+
+    .session-badge {
+      font-family: var(--font-active); font-size: 11px; padding: 3px 9px;
+      border-radius: 999px; background: var(--accent-soft);
+      color: var(--accent); border: 1px solid var(--accent); white-space: nowrap;
+    }
+
+    /* Timer Section */
+    .timer-box {
+      position: relative; text-align: center;
+      padding: 14px 12px; background: var(--timer-bg);
+      border-radius: 10px; margin-bottom: 14px;
+    }
+
+    .timer-main { flex: 1; }
+    .mode-label {
+      font-family: var(--font-active); font-size: 11px;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .timer-display {
+      font-family: var(--font-active); font-size: 48px; font-weight: 700;
+      letter-spacing: 0.04em; color: var(--text-main); line-height: 1.05;
+    }
+
+    .progress-track {
+      width: 100%; height: 6px;
+      background: rgba(147, 153, 178, 0.2);
+      border-radius: 999px; overflow: hidden; margin-top: 10px;
+    }
+    .progress-fill { height: 100%; width: 100%; background: var(--accent); transition: width 0.5s linear; }
+
+    .timer-controls { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+    body.obs-mode .timer-controls.hide-in-obs { display: none; }
+
+    .btn {
+      font-family: var(--font-active); font-size: 12px; font-weight: 700;
+      padding: 7px 12px; border-radius: 8px;
+      border: 1px solid rgba(147, 153, 178, 0.25);
+      background: var(--item-bg); color: var(--text-main);
+      cursor: pointer; transition: 0.15s ease;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn-primary { background: var(--accent); color: var(--btn-text); border-color: var(--accent); }
+    .btn-sm { font-size: 11px; padding: 5px 8px; }
+
+    /* Task List */
+    .tasks-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-active); font-size: 11px;
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 8px;
+    }
+
+    .task-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .task-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: 8px;
+      background: var(--item-bg); font-family: var(--font-active);
+      font-size: 13px; cursor: pointer; transition: 0.15s ease;
+    }
+
+    .task-check {
+      width: 16px; height: 16px; border-radius: 4px;
+      border: 2px solid var(--accent);
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 11px; color: var(--btn-text); font-weight: 700;
+    }
+
+    .task-item.done .task-check { background: var(--accent); }
+    .task-item.done .task-text { text-decoration: line-through; color: var(--text-muted); }
+
+    .hidden { display: none !important; }
+
+    /* Pet Companion Stage & Care Bar */
+    .pet-wrapper { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+
+    .pet-stage {
+      position: relative; height: 62px; border-radius: 10px;
+      background: var(--item-bg); overflow: visible;
+      display: flex; align-items: flex-end; padding: 0 12px 4px 12px;
+      border: 1px dashed rgba(147, 153, 178, 0.22);
+    }
+
+    .pet-stats {
+      position: absolute; top: 5px; left: 8px; display: flex; gap: 8px;
+      font-family: var(--font-active); font-size: 10px; color: var(--text-muted); z-index: 2;
+    }
+
+    .pet-actor {
+      position: absolute; bottom: 4px; left: 18px;
+      width: 44px; height: 44px; cursor: pointer; user-select: none;
+      transition: left 0.9s ease-in-out, transform 0.25s ease; z-index: 3;
+    }
+
+    .pet-actor svg { width: 100%; height: 100%; display: block; }
+    .pet-actor.sleeping svg { animation: breathe 2.6s ease-in-out infinite; }
+    .pet-actor.chaotic svg { animation: hop 0.48s ease-in-out infinite alternate; }
+    .pet-actor.swimming svg { animation: swimBob 0.9s ease-in-out infinite alternate; }
+    .pet-actor.happy svg { transform: scale(1.22) translateY(-6px); }
+
+    .pet-bubble {
+      position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: var(--btn-text);
+      font-family: var(--font-active); font-size: 10px; font-weight: 700;
+      padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.28); opacity: 0;
+      pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; z-index: 6;
+    }
+    .pet-bubble.visible { opacity: 1; transform: translateX(-50%) translateY(-3px); }
+
+    .pet-zzz {
+      position: absolute; top: 5px; right: 10px;
+      font-family: var(--font-active); font-size: 11px;
+      color: var(--text-muted); animation: floatZ 2s ease-in-out infinite;
+    }
+
+    .pet-fx {
+      position: absolute; bottom: 38px; left: 50%; font-size: 15px;
+      pointer-events: none; animation: fxUp 0.95s ease-out forwards; z-index: 7;
+    }
+
+    .pet-ball {
+      position: absolute; bottom: 6px; font-size: 16px; z-index: 4;
+      pointer-events: none; transition: left 0.45s ease-out;
+      animation: ballBounce 0.45s ease-in-out infinite alternate;
+    }
+
+    .pet-poop {
+      position: absolute; bottom: 6px; right: 16px; font-size: 16px;
+      cursor: pointer; z-index: 4; animation: breathe 1.8s ease-in-out infinite;
+    }
+
+    .pet-star {
+      position: absolute; top: 10px; font-size: 18px; cursor: pointer;
+      z-index: 5; animation: hop 0.5s ease-in-out infinite alternate;
+    }
+
+    .pet-care-bar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+    body.obs-mode .pet-care-bar.hide-in-obs { display: none; }
+
+    .care-btn {
+      font-family: var(--font-active); font-size: 10px; font-weight: 700;
+      padding: 5px 3px; border-radius: 7px;
+      border: 1px solid rgba(147, 153, 178, 0.22);
+      background: var(--item-bg); color: var(--text-main);
+      cursor: pointer; text-align: center; transition: 0.15s ease;
+    }
+    .care-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+    @keyframes breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.93) translateY(1px); } }
+    @keyframes hop { 0% { transform: translateY(0) rotate(-3deg); } 100% { transform: translateY(-7px) rotate(3deg); } }
+    @keyframes swimBob { 0% { transform: translateY(1px) rotate(-4deg); } 100% { transform: translateY(-4px) rotate(4deg); } }
+    @keyframes floatZ { 0%, 100% { opacity: 0.35; transform: translateY(0); } 50% { opacity: 0.95; transform: translateY(-4px); } }
+    @keyframes fxUp { 0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); } 100% { opacity: 0; transform: translate(-50%, -28px) scale(1.25); } }
+    @keyframes ballBounce { 0% { transform: translateY(0); } 100% { transform: translateY(-18px) rotate(120deg); } }
+
+    /* Customizer Panel */
+    .customizer-panel {
+      background: var(--bg-panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px; padding: 20px;
+      display: flex; flex-direction: column; gap: 11px;
+      max-height: 92vh; overflow-y: auto;
+    }
+
+    .panel-title { font-size: 16px; font-weight: 700; color: #fff; }
+    .panel-sub { font-size: 12px; color: #9399b2; line-height: 1.5; }
+
+    .preset-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .saved-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .saved-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px; padding: 3px 9px; font-size: 11px; color: #cdd6f4;
+    }
+    .saved-chip span { cursor: pointer; }
+    .saved-chip button { background: none; border: none; color: #f38ba8; cursor: pointer; font-weight: 700; font-size: 12px; }
+
+    .section-divider {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--accent); margin-top: 2px;
+      padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-group label { font-size: 11.5px; font-weight: 600; color: #a6adc8; }
+
+    .field-group input[type="text"],
+    .field-group input[type="number"],
+    .field-group select,
+    .field-group textarea {
+      width: 100%; padding: 7px 10px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(0, 0, 0, 0.28); color: #fff;
+      font-family: var(--font-sans); font-size: 13px;
+    }
+
+    .field-group input[type="color"] {
+      width: 100%; height: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
+      background: rgba(0, 0, 0, 0.28); padding: 2px; cursor: pointer;
+    }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+    .toggle-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; color: #cdd6f4; cursor: pointer;
+    }
+
+    .copy-feedback { font-size: 12px; color: #a6e3a1; min-height: 16px; word-break: break-all; }
+
+    @media (max-width: 860px) {
+      .studio-layout { grid-template-columns: 1fr; justify-items: center; }
+      .customizer-panel { width: 100%; max-width: 400px; }
+      .preset-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* License Key Gate */
+    .license-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(17, 17, 27, 0.94);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .license-box {
+      width: 100%; max-width: 360px;
+      background: rgba(30, 30, 46, 0.98);
+      border: 2px solid var(--accent);
+      border-radius: 14px; padding: 22px;
+      display: flex; flex-direction: column; gap: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    }
+    .license-title { font-family: var(--font-active); font-size: 15px; font-weight: 700; color: var(--accent); }
+    .license-desc { font-size: 12px; color: #a6adc8; line-height: 1.5; }
+    .license-input {
+      width: 100%; padding: 9px 11px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.35); color: #fff;
+      font-family: var(--font-active); font-size: 13px; letter-spacing: 0.04em;
+    }
+    .license-msg { font-size: 12px; min-height: 16px; color: #f38ba8; }
+    .license-msg.ok { color: #a6e3a1; }
+  </style>
+</head>
+<body>
+  <div class="license-overlay" id="licenseOverlay">
+    <div class="license-box">
+      <div class="license-title">Activate Your License</div>
+      <div class="license-desc">Enter your Gumroad license key (1-time activation per key) to unlock <strong>TerraDevLab Cozy Pomodoro</strong>.</div>
+      <input class="license-input" id="licenseInput" type="text" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX" />
+      <button class="btn btn-primary" id="activateBtn" type="button">Verify &amp; Unlock</button>
+      <button class="btn btn-sm hidden" id="demoUnlockBtn" type="button">Preview Mode (Product ID not set yet)</button>
+      <div class="license-msg" id="licenseMsg"></div>
+    </div>
+  </div>
+  <div class="studio-layout">
+    <!-- Live Widget -->
+    <div class="widget-card" id="widgetCard">
+      <div class="widget-header">
+        <div class="widget-title">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="displayTitle">COZY FOCUS</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;"><div class="session-badge" id="sessionBadge">SESSION 1/4</div><button class="btn btn-sm" id="toggleSettingsBtn" type="button" title="Show/Hide Settings">⚙</button></div>
+      </div>
+
+      <div class="timer-box">
+        <div class="timer-main">
+          <div class="mode-label" id="modeLabel">FOCUS TIME</div>
+          <div class="timer-display" id="timerDisplay">25:00</div>
+          <div class="progress-track" id="progressTrack">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+        </div>
+        <div class="timer-controls hide-in-obs" id="timerControls">
+          <button class="btn btn-primary" id="startPauseBtn">Start</button>
+          <button class="btn" id="switchModeBtn">Break</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+      </div>
+
+      <div class="tasks-section" id="tasksSection">
+        <div class="tasks-header">
+          <span>Stream Goals</span>
+          <span id="taskCounter">0/3</span>
+        </div>
+        <ul class="task-list" id="taskList"></ul>
+      </div>
+
+      <!-- Animated Virtual Pet Stage & Care Bar -->
+      <div class="pet-wrapper" id="petWrapper">
+        <div class="pet-stage" id="petStage">
+          <div class="pet-stats" id="petStats">
+            <span>🍖 <b id="hungerVal">90</b>%</span>
+            <span>💖 <b id="happyVal">90</b>%</span>
+            <span>✨ <b id="cleanVal">100</b>%</span>
+          </div>
+          <div class="pet-zzz" id="petZzz">zZz...</div>
+          <div class="pet-actor sleeping" id="petActor" title="Click to pet!">
+            <div class="pet-bubble" id="petBubble">BREAK TIME!</div>
+            <div id="petSvgWrap"></div>
+          </div>
+        </div>
+        <div class="pet-care-bar hide-in-obs" id="petCareBar">
+          <button class="care-btn" type="button" id="careTalkBtn">💬 Talk</button>
+          <button class="care-btn" type="button" id="careFeedBtn">🍓 Feed</button>
+          <button class="care-btn" type="button" id="careBallBtn">⚽ Ball</button>
+          <button class="care-btn" type="button" id="careGameBtn">🎮 Game</button>
+          <button class="care-btn" type="button" id="careBathBtn">🫧 Bath</button>
+          <button class="care-btn" type="button" id="careCleanBtn">🧻 Clean</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup / Customizer Panel (hidden in OBS mode) -->
+    <div class="customizer-panel">
+      <div>
+        <div class="panel-title">Desktop &amp; OBS Widget Deluxe</div>
+        <div class="panel-sub">Use standalone on desktop (Always-on-Top Floating Window) or in OBS Studio!</div>
+      </div>
+
+      <div class="row-2">
+        <button class="btn btn-primary" id="popoutBtn" type="button">Pop-out Always on Top</button>
+        <button class="btn" id="notifyPermBtn" type="button">Enable Break Alerts</button>
+      </div>
+
+      <div class="field-group">
+        <label>Quick Presets &amp; Your Saved Presets</label>
+        <div class="preset-bar">
+          <button class="btn btn-sm" type="button" data-preset="study">Study</button>
+          <button class="btn btn-sm" type="button" data-preset="art">Art Stream</button>
+          <button class="btn btn-sm" type="button" data-preset="gaming">Cozy Game</button>
+          <button class="btn btn-sm" type="button" data-preset="grind">Code Grind</button>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <input id="presetNameInput" type="text" placeholder="My preset name (e.g. Late Night)" maxlength="20" />
+          <button class="btn btn-primary btn-sm" id="savePresetBtn" type="button" style="white-space:nowrap;">+ Save Preset</button>
+        </div>
+        <div class="saved-presets" id="savedPresetsList"></div>
+      </div>
+
+      <div class="row-2">
+        <div class="field-group">
+          <label for="themeSelect">Theme (12 Presets)</label>
+          <select id="themeSelect">
+            <option value="matcha">Matcha Cafe</option>
+            <option value="lofi">Midnight Lo-Fi</option>
+            <option value="sakura">Sakura Milk</option>
+            <option value="terminal">Retro Terminal</option>
+            <option value="ocean">Ocean Glass</option>
+            <option value="sunset">Sunset Peach</option>
+            <option value="cyber">Cyber Neon</option>
+            <option value="boba">Berry Boba</option>
+            <option value="forest">Forest Cabin</option>
+            <option value="candy">Cotton Candy</option>
+            <option value="gold">Obsidian Gold</option>
+            <option value="paper">Minimal Paper (Light)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="fontSelect">Font Style (8 Fonts)</label>
+          <select id="fontSelect">
+            <option value="mono">Mono (Tech)</option>
+            <option value="pixel">Pixel / Arcade</option>
+            <option value="rounded">Cozy Rounded</option>
+            <option value="sans">Modern Sans</option>
+            <option value="serif">Editorial Serif</option>
+            <option value="typewriter">Typewriter</option>
+            <option value="display">Bold Display</option>
+            <option value="hand">Handwritten Note</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field-group">
+          <label for="layoutSelect">Layout Mode</label>
+          <select id="layoutSelect">
+            <option value="full">Full Card</option>
+            <option value="compact">Compact Bar</option>
+            <option value="pill">Mini Pill</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="borderSelect">Border Style</label>
+          <select id="borderSelect">
+            <option value="solid">Solid Glow</option>
+            <option value="dashed">Dashed Cozy</option>
+            <option value="minimal">Soft Minimal</option>
+            <option value="pixel">Pixel Shadow</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="accentPicker">Accent Color</label>
+          <input id="accentPicker" type="color" value="#a6e3a1" />
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field-group">
+          <label for="opacityRange">Opacity (<span id="opacityVal">92</span>%)</label>
+          <input id="opacityRange" type="range" min="35" max="100" value="92" />
+        </div>
+        <div class="field-group">
+          <label for="radiusRange">Roundness (<span id="radiusVal">14</span>px)</label>
+          <input id="radiusRange" type="range" min="0" max="24" value="14" />
+        </div>
+        <div class="field-group">
+          <label for="scaleRange">Size (<span id="scaleVal">100</span>%)</label>
+          <input id="scaleRange" type="range" min="70" max="135" value="100" />
+        </div>
+      </div>
+
+      <div class="section-divider">Virtual Pet Companion (32 Looks)</div>
+
+      <div class="row-2">
+        <div class="field-group">
+          <label for="petSelect">Pet Species</label>
+          <select id="petSelect">
+            <option value="cat">Cat</option>
+            <option value="dog">Dog</option>
+            <option value="bird">Bird</option>
+            <option value="rabbit">Rabbit</option>
+            <option value="fish">Fish</option>
+            <option value="hamster">Hamster</option>
+            <option value="fox">Fox</option>
+            <option value="frog">Frog</option>
+            <option value="none">None (Hide Pet)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="petVariantSelect">Pet Look</label>
+          <select id="petVariantSelect"></select>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="field-group">
+          <label for="petNameInput">Pet Name</label>
+          <input id="petNameInput" type="text" value="Mochi" maxlength="16" />
+        </div>
+        <div class="field-group">
+          <label for="petBehaviorSelect">Pet Behavior</label>
+          <select id="petBehaviorSelect">
+            <option value="break">Chaos on Break (Nap in Focus)</option>
+            <option value="always">Always Playful</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-divider">Timer, Sound &amp; Window Behavior</div>
+
+      <div class="row-2">
+        <div class="field-group">
+          <label for="titleInput">Widget Title</label>
+          <input id="titleInput" type="text" value="COZY FOCUS" maxlength="24" />
+        </div>
+        <div class="field-group">
+          <label for="soundSelect">Chime Sound (6 Options)</label>
+          <div style="display:flex; gap:6px;">
+            <select id="soundSelect">
+              <option value="bell">Soft Bell</option>
+              <option value="8bit">8-Bit Chime</option>
+              <option value="chord">Gentle Chord</option>
+              <option value="lofi">Lo-Fi Ding</option>
+              <option value="fanfare">Victory Fanfare</option>
+              <option value="mute">Muted</option>
+            </select>
+            <button class="btn" id="testSoundBtn" type="button" title="Test Sound">♪</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field-group">
+          <label for="focusMinsInput">Focus (min)</label>
+          <input id="focusMinsInput" type="number" min="1" max="120" value="25" />
+        </div>
+        <div class="field-group">
+          <label for="breakMinsInput">Break (min)</label>
+          <input id="breakMinsInput" type="number" min="1" max="60" value="5" />
+        </div>
+        <div class="field-group">
+          <label for="goalSessionsInput">Goal Sessions</label>
+          <input id="goalSessionsInput" type="number" min="1" max="20" value="4" />
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label for="tasksInput">Stream Goals (one per line — auto-saved)</label>
+        <textarea id="tasksInput" rows="2">Finish rough sketch
+Reply to emails
+Stretch &amp; hydrate</textarea>
+      </div>
+
+      <div class="toggle-grid">
+        <label class="toggle-item"><input type="checkbox" id="showTasksChk" checked /> Show Checklist</label>
+        <label class="toggle-item"><input type="checkbox" id="showProgressChk" checked /> Progress Bar</label>
+        <label class="toggle-item"><input type="checkbox" id="showBadgeChk" checked /> Session Badge</label>
+        <label class="toggle-item"><input type="checkbox" id="obsControlsChk" /> OBS Buttons</label>
+        <label class="toggle-item"><input type="checkbox" id="obsCareChk" /> OBS Pet Care</label>
+        <label class="toggle-item"><input type="checkbox" id="showStatsChk" checked /> Pet Status Bars</label>
+        <label class="toggle-item"><input type="checkbox" id="breakPopupChk" /> Pop-up on Break</label>
+        <label class="toggle-item"><input type="checkbox" id="breakOnlyVisChk" /> Dim During Focus</label>
+      </div>
+
+      <div class="row-2">
+        <button class="btn btn-primary" id="copyObsBtn" type="button">Copy OBS Link</button>
+        <button class="btn" id="previewObsBtn" type="button">Preview OBS Mode</button>
+      </div>
+      <div class="copy-feedback" id="copyFeedback"></div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // [REQUIRED BEFORE SELLING] Paste your Gumroad product_id below:
+    // Find it in Gumroad -> Edit Product -> Content / License key section.
+    // =========================================================================
+    const GUMROAD_PRODUCT_ID = 'NMkmlO3xw8s_UJFF4OJVwA==';
+    const LICENSE_STORAGE_KEY = 'terradevlab_license_v1';
+
+    (function initLicenseGate() {
+      const overlay = document.getElementById('licenseOverlay');
+      const input = document.getElementById('licenseInput');
+      const btn = document.getElementById('activateBtn');
+      const msg = document.getElementById('licenseMsg');
+      const VERIFY_PORTAL_URL = 'https://jackfrost31213za.github.io/terradevlab-verify/';
+
+      // Add helper portal link + Copy URL button for iPadOS / iOS / OBS local files
+      const portalHint = document.createElement('div');
+      portalHint.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px dashed #334155;font-size:11px;color:#94a3b8;line-height:1.5;';
+      portalHint.innerHTML = '<b>OBS Studio / iPadOS &amp; iOS Users:</b><br>Local files cannot connect directly. Open <a href="' + VERIFY_PORTAL_URL + '" target="_blank" rel="noopener" style="color:#86efac;text-decoration:underline;">Activation Portal</a> in Safari/Browser to get your <code>TDL-...</code> Unlock Code.<br><span style="color:#cbd5e1;">iPad/iPhone tip: Open in <b>Documents by Readdle</b> or <b>HTML Viewer Q</b> to save your unlock permanently.</span><br><button type="button" id="copyPortalBtn" style="margin-top:6px;padding:5px 10px;font-size:11px;border-radius:6px;border:1px solid #475569;background:#1e2130;color:#e2e8f0;cursor:pointer;">Copy Portal Link</button>';
+      msg.parentNode.insertBefore(portalHint, msg.nextSibling);
+      const copyPortalBtn = document.getElementById('copyPortalBtn');
+      if (copyPortalBtn) {
+        copyPortalBtn.addEventListener('click', () => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(VERIFY_PORTAL_URL).then(() => {
+              copyPortalBtn.textContent = 'Copied Portal URL!';
+              setTimeout(() => copyPortalBtn.textContent = 'Copy Portal Link', 1800);
+            }).catch(() => {
+              prompt('Copy this Activation Portal URL:', VERIFY_PORTAL_URL);
+            });
+          } else {
+            prompt('Copy this Activation Portal URL:', VERIFY_PORTAL_URL);
+          }
+        });
+      }
+
+      input.placeholder = 'License Key or TDL-... Unlock Code';
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlKey = urlParams.get('license');
+
+      try {
+        const saved = JSON.parse(localStorage.getItem(LICENSE_STORAGE_KEY) || 'null');
+        if (saved && saved.unlocked === true && saved.productId === GUMROAD_PRODUCT_ID) {
+          overlay.classList.add('hidden');
+          return;
+        }
+      } catch (e) {}
+
+      function checkOfflineToken(raw) {
+        const cleaned = (raw || '').replace(/\s+/g, '');
+        if (!/^tdl-/i.test(cleaned)) return null;
+        try {
+          let b64 = cleaned.slice(4);
+          while (b64.length % 4 !== 0) b64 += '=';
+          const decoded = atob(b64);
+          const prefix = GUMROAD_PRODUCT_ID + ':';
+          if (decoded.startsWith(prefix) && decoded.slice(prefix.length).trim().length >= 8) {
+            return decoded.slice(prefix.length).trim();
+          }
+        } catch (e) {}
+        return false;
+      }
+
+      async function verifyKey(rawKey) {
+        const key = (rawKey || '').trim();
+        if (!key) {
+          msg.className = 'license-msg';
+          msg.textContent = 'Please enter your Gumroad license key or TDL-... unlock code.';
+          return;
+        }
+
+        const tokenCheck = checkOfflineToken(key);
+        if (tokenCheck === false) {
+          msg.className = 'license-msg';
+          msg.textContent = 'Invalid Unlock Code for this widget.';
+          return;
+        }
+        if (typeof tokenCheck === 'string') {
+          try {
+            localStorage.setItem(LICENSE_STORAGE_KEY, JSON.stringify({
+              unlocked: true,
+              key: tokenCheck,
+              productId: GUMROAD_PRODUCT_ID
+            }));
+          } catch (e) {}
+          msg.className = 'license-msg ok';
+          msg.textContent = 'Unlocked! Loading widget...';
+          setTimeout(() => overlay.classList.add('hidden'), 400);
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+        msg.className = 'license-msg';
+        msg.textContent = '';
+        try {
+          const body = new URLSearchParams();
+          body.set('product_id', GUMROAD_PRODUCT_ID);
+          body.set('license_key', key);
+          body.set('increment_uses_count', 'true');
+          const res = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+          });
+          const data = await res.json();
+          if (!data.success) {
+            msg.textContent = data.message || 'Invalid license key.';
+          } else if (data.purchase && (data.purchase.refunded || data.purchase.chargebacked)) {
+            msg.textContent = 'This purchase was refunded or disputed.';
+          } else if (typeof data.uses === 'number' && data.uses > 1) {
+            msg.textContent = 'This license key has already been used (limit: 1 activation).';
+          } else {
+            try {
+              localStorage.setItem(LICENSE_STORAGE_KEY, JSON.stringify({
+                unlocked: true,
+                key,
+                productId: GUMROAD_PRODUCT_ID
+              }));
+            } catch (e) {}
+            msg.className = 'license-msg ok';
+            msg.textContent = 'Activated! Unlocking...';
+            setTimeout(() => overlay.classList.add('hidden'), 400);
+          }
+        } catch (err) {
+          msg.innerHTML = 'Local file blocked direct check. Tap <a href="' + VERIFY_PORTAL_URL + '" target="_blank" rel="noopener" style="color:#86efac;text-decoration:underline;">Open Activation Portal</a> above, enter your key, and paste the <code>TDL-...</code> code here.';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Verify & Unlock';
+        }
+      }
+
+      btn.addEventListener('click', () => verifyKey(input.value));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') verifyKey(input.value); });
+      if (urlKey) {
+        input.value = urlKey;
+        verifyKey(urlKey);
+      }
+    })();
+
+    const THEMES = {
+      matcha:   { rgb: '24, 24, 37',   accent: '#a6e3a1', text: '#cdd6f4', muted: '#9399b2', item: 'rgba(255,255,255,0.05)', timer: 'rgba(0,0,0,0.24)', btnText: '#11111b' },
+      lofi:     { rgb: '26, 24, 43',   accent: '#cba6f7', text: '#cdd6f4', muted: '#a6adc8', item: 'rgba(255,255,255,0.05)', timer: 'rgba(0,0,0,0.24)', btnText: '#11111b' },
+      sakura:   { rgb: '38, 25, 36',   accent: '#f5c2e7', text: '#f5e0dc', muted: '#cba6b6', item: 'rgba(255,255,255,0.06)', timer: 'rgba(0,0,0,0.22)', btnText: '#1e121c' },
+      terminal: { rgb: '16, 18, 16',   accent: '#f9e2af', text: '#f9e2af', muted: '#a69878', item: 'rgba(249,226,175,0.07)', timer: 'rgba(0,0,0,0.35)', btnText: '#101210' },
+      ocean:    { rgb: '15, 28, 46',   accent: '#74c7ec', text: '#e0f2fe', muted: '#7dd3fc', item: 'rgba(255,255,255,0.05)', timer: 'rgba(0,0,0,0.26)', btnText: '#0f1c2e' },
+      sunset:   { rgb: '40, 24, 28',   accent: '#fab387', text: '#fde8d7', muted: '#d4a38d', item: 'rgba(255,255,255,0.06)', timer: 'rgba(0,0,0,0.24)', btnText: '#28181c' },
+      cyber:    { rgb: '18, 12, 32',   accent: '#00f5d4', text: '#f1f5f9', muted: '#a78bfa', item: 'rgba(255,255,255,0.06)', timer: 'rgba(0,0,0,0.35)', btnText: '#0d091a' },
+      boba:     { rgb: '34, 22, 30',   accent: '#f38ba8', text: '#fce7f3', muted: '#d8a5b8', item: 'rgba(255,255,255,0.06)', timer: 'rgba(0,0,0,0.26)', btnText: '#22161e' },
+      forest:   { rgb: '20, 30, 24',   accent: '#94e2d5', text: '#e2f1e8', muted: '#8bb39b', item: 'rgba(255,255,255,0.05)', timer: 'rgba(0,0,0,0.28)', btnText: '#141e18' },
+      candy:    { rgb: '30, 27, 46',   accent: '#89dceb', text: '#f5e0dc', muted: '#b4befe', item: 'rgba(255,255,255,0.06)', timer: 'rgba(0,0,0,0.22)', btnText: '#1e1b2e' },
+      gold:     { rgb: '18, 18, 20',   accent: '#eab308', text: '#fefce8', muted: '#a1a1aa', item: 'rgba(234,179,8,0.08)',   timer: 'rgba(0,0,0,0.36)', btnText: '#121214' },
+      paper:    { rgb: '248, 245, 240',accent: '#3b82f6', text: '#1e293b', muted: '#64748b', item: 'rgba(15,23,42,0.06)',   timer: 'rgba(15,23,42,0.06)', btnText: '#ffffff' }
+    };
+
+    const PET_VARIANTS = {
+      cat: [
+        { id: 'calico', name: 'Calico', main: '#f8fafc', ear: '#f59e0b', patch: '#334155', cheek: '#f472b6' },
+        { id: 'orange', name: 'Orange Tabby', main: '#fb923c', ear: '#c2410c', patch: '#fed7aa', cheek: '#fb7185' },
+        { id: 'tuxedo', name: 'Tuxedo', main: '#1e293b', ear: '#0f172a', patch: '#f8fafc', cheek: '#f472b6' },
+        { id: 'siamese', name: 'Siamese', main: '#fef3c7', ear: '#78350f', patch: '#92400e', cheek: '#fb7185' }
+      ],
+      dog: [
+        { id: 'shiba', name: 'Shiba Inu', main: '#f59e0b', ear: '#b45309', patch: '#fef3c7', cheek: '#fb7185' },
+        { id: 'corgi', name: 'Corgi', main: '#ea580c', ear: '#9a3412', patch: '#ffffff', cheek: '#f472b6' },
+        { id: 'husky', name: 'Husky', main: '#64748b', ear: '#334155', patch: '#f8fafc', cheek: '#93c5fd' },
+        { id: 'golden', name: 'Golden Retriever', main: '#fcd34d', ear: '#d97706', patch: '#fef9c3', cheek: '#fb7185' }
+      ],
+      bird: [
+        { id: 'lovebird', name: 'Peach Lovebird', main: '#4ade80', ear: '#fb7185', patch: '#fde047', cheek: '#f43f5e' },
+        { id: 'cockatiel', name: 'Cockatiel', main: '#e2e8f0', ear: '#facc15', patch: '#f97316', cheek: '#ef4444' },
+        { id: 'budgie', name: 'Sky Budgie', main: '#38bdf8', ear: '#f8fafc', patch: '#0284c7', cheek: '#f472b6' },
+        { id: 'canary', name: 'Lemon Canary', main: '#fde047', ear: '#eab308', patch: '#fef9c3', cheek: '#fb7185' }
+      ],
+      rabbit: [
+        { id: 'snow', name: 'Snow White', main: '#f8fafc', ear: '#fbcfe8', patch: '#e2e8f0', cheek: '#f472b6' },
+        { id: 'lop', name: 'Caramel Lop', main: '#d97706', ear: '#92400e', patch: '#fef3c7', cheek: '#fb7185' },
+        { id: 'dutch', name: 'Choco Dutch', main: '#57534e', ear: '#292524', patch: '#f5f5f4', cheek: '#f472b6' },
+        { id: 'lavender', name: 'Pastel Lilac', main: '#e9d5ff', ear: '#c084fc', patch: '#faf5ff', cheek: '#f472b6' }
+      ],
+      fish: [
+        { id: 'gold', name: 'Goldfish', main: '#fb923c', ear: '#ea580c', patch: '#fef08a', cheek: '#f43f5e' },
+        { id: 'betta', name: 'Blue Betta', main: '#3b82f6', ear: '#1d4ed8', patch: '#a855f7', cheek: '#67e8f9' },
+        { id: 'koi', name: 'Koi', main: '#f8fafc', ear: '#ef4444', patch: '#1e293b', cheek: '#fb7185' },
+        { id: 'tetra', name: 'Neon Tetra', main: '#06b6d4', ear: '#ef4444', patch: '#e0f2fe', cheek: '#67e8f9' }
+      ],
+      hamster: [
+        { id: 'golden', name: 'Golden Hammy', main: '#fbbf24', ear: '#d97706', patch: '#fef3c7', cheek: '#fb7185' },
+        { id: 'pearl', name: 'Snow Pearl', main: '#f1f5f9', ear: '#cbd5e1', patch: '#ffffff', cheek: '#f9a8d4' },
+        { id: 'pudding', name: 'Pudding', main: '#d6a46f', ear: '#854d0e', patch: '#fef9c3', cheek: '#fda4af' },
+        { id: 'oreo', name: 'Charcoal Oreo', main: '#334155', ear: '#1e293b', patch: '#f8fafc', cheek: '#f472b6' }
+      ],
+      fox: [
+        { id: 'red', name: 'Red Fox', main: '#f97316', ear: '#9a3412', patch: '#fff7ed', cheek: '#fb7185' },
+        { id: 'arctic', name: 'Arctic Fox', main: '#f8fafc', ear: '#cbd5e1', patch: '#e2e8f0', cheek: '#93c5fd' },
+        { id: 'fennec', name: 'Sand Fennec', main: '#fde68a', ear: '#d97706', patch: '#fffbeb', cheek: '#fda4af' },
+        { id: 'spirit', name: 'Pastel Spirit', main: '#e9d5ff', ear: '#a855f7', patch: '#fdf4ff', cheek: '#f472b6' }
+      ],
+      frog: [
+        { id: 'matcha', name: 'Matcha Frog', main: '#4ade80', ear: '#16a34a', patch: '#dcfce7', cheek: '#fb7185' },
+        { id: 'berry', name: 'Strawberry Frog', main: '#fb7185', ear: '#e11d48', patch: '#ffe4e6', cheek: '#f43f5e' },
+        { id: 'rainy', name: 'Rainy Blue', main: '#38bdf8', ear: '#0284c7', patch: '#e0f2fe', cheek: '#f472b6' },
+        { id: 'gold', name: 'Golden Frog', main: '#facc15', ear: '#ca8a04', patch: '#fef9c3', cheek: '#fb7185' }
+      ],
+      none: [{ id: 'none', name: 'Hidden' }]
+    };
+
+    const PRESETS = {
+      study: { theme: 'matcha', font: 'rounded', border: 'solid', layout: 'full', pet: 'cat', petVariant: 'calico', petName: 'Mochi', title: 'STUDY WITH ME', tasks: 'Read 2 chapters\nFinish practice notes\nDrink water' },
+      art: { theme: 'sakura', font: 'hand', border: 'dashed', layout: 'full', pet: 'bird', petVariant: 'lovebird', petName: 'Kiwi', title: 'ART STREAM', tasks: 'Sketch lineart\nBase colors\nFinal lighting' },
+      gaming: { theme: 'lofi', font: 'pixel', border: 'pixel', layout: 'full', pet: 'dog', petVariant: 'shiba', petName: 'Yuzu', title: 'COZY QUESTS', tasks: 'Daily farm chores\nCraft upgrades\nExplore dungeon' },
+      grind: { theme: 'terminal', font: 'mono', border: 'solid', layout: 'compact', pet: 'fox', petVariant: 'red', petName: 'Byte', title: 'DEV SPRINT', tasks: 'Fix open bugs\nPush clean build\nStretch break' }
+    };
+
+    const TALK_LINES = {
+      cat: ['Meow~ how is work going?', '*blinks slowly*', 'You got this, hooman!', 'Feed me snacks pls'],
+      dog: ['Woof! Proud of you!', '*tail wags*', 'Play ball with me soon!', 'Stay hydrated!'],
+      bird: ['Chirp! Nice focus!', '*preens feathers*', 'Sing a song with me!', 'Seed time?'],
+      rabbit: ['*wiggles nose*', 'Keep going!', 'Carrot break soon?', '*soft hop*'],
+      fish: ['Blub blub~', '*blows bubbles*', 'Smooth swimming today!', 'oOo'],
+      hamster: ['Squeak! Doing great!', '*stuffs cheeks*', 'Wheel run later!', '*tiny yawn*'],
+      fox: ['*happy yip*', 'Cozy vibes today!', 'You are super focused!', '*tail swish*'],
+      frog: ['Ribbit! Good job!', '*comfy croak*', 'Rainy day focus~', '*boing*']
+    };
+
+    const FONTS = {
+      mono: "'Courier New', Courier, monospace",
+      pixel: "'Lucida Console', 'Courier New', monospace",
+      rounded: "'Trebuchet MS', 'Hiragino Maru Gothic ProN', sans-serif",
+      sans: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      serif: "Georgia, 'Times New Roman', serif",
+      typewriter: "'American Typewriter', 'Courier New', monospace",
+      display: "Impact, 'Arial Black', sans-serif",
+      hand: "'Bradley Hand', 'Comic Sans MS', cursive"
+    };
+
+    const STORAGE_KEY = 'terradevlab_cozy_pomo_v2';
+    const PRESET_STORAGE_KEY = 'terradevlab_saved_presets_v1';
+    const params = new URLSearchParams(window.location.search);
+    const isObs = params.get('obs') === 'true';
+    const isPipPopup = params.get('pip') === 'true';
+    if (isObs) document.body.classList.add('obs-mode');
+    if (isPipPopup) document.body.classList.add('pip-mode');
+
+    const state = {
+      theme: params.get('theme') || 'matcha',
+      layout: params.get('layout') || 'full',
+      border: params.get('border') || 'solid',
+      accent: params.get('accent') || '',
+      font: params.get('font') || 'mono',
+      opacity: Math.min(100, Math.max(35, parseInt(params.get('opacity') || '92', 10))),
+      radius: Math.min(24, Math.max(0, parseInt(params.get('radius') || '14', 10))),
+      scale: Math.min(135, Math.max(70, parseInt(params.get('scale') || '100', 10))),
+      title: params.get('title') || 'COZY FOCUS',
+      sound: params.get('sound') || 'bell',
+      focusMins: Math.max(1, parseInt(params.get('focus') || '25', 10)),
+      breakMins: Math.max(1, parseInt(params.get('break') || '5', 10)),
+      goalSessions: Math.max(1, parseInt(params.get('goal') || '4', 10)),
+      showTasks: params.get('showTasks') !== '0',
+      showProgress: params.get('showProgress') !== '0',
+      showBadge: params.get('showBadge') !== '0',
+      obsControls: params.get('obsControls') === '1',
+      obsCare: params.get('obsCare') === '1',
+      showStats: params.get('showStats') !== '0',
+      breakPopup: params.get('breakPopup') === '1',
+      breakOnlyVis: params.get('breakOnlyVis') === '1',
+      pet: params.get('pet') || 'cat',
+      petVariant: params.get('petVariant') || 'calico',
+      petName: params.get('petName') || 'Mochi',
+      petBehavior: params.get('petBehavior') || 'break',
+      hunger: 90,
+      happy: 90,
+      clean: 100,
+      poopCount: 0,
+      mode: 'focus',
+      running: isObs || isPipPopup,
+      session: 1,
+      secondsLeft: 25 * 60,
+      petPos: 18,
+      petDir: 1,
+      tasks: (params.get('tasks') ? params.get('tasks').split('|') : ['Finish rough sketch', 'Reply to emails', 'Stretch & hydrate']).map(t => ({ text: t, done: false }))
+    };
+    state.secondsLeft = state.focusMins * 60;
+
+    function loadSavedProgress() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved && saved.title === state.title && Array.isArray(saved.doneMap)) {
+          state.tasks.forEach((t, idx) => {
+            if (typeof saved.doneMap[idx] === 'boolean') t.done = saved.doneMap[idx];
+          });
+          if (typeof saved.session === 'number' && saved.session >= 1 && saved.session <= state.goalSessions) {
+            state.session = saved.session;
+          }
+        }
+      } catch (e) {}
+    }
+
+    function saveProgress() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          title: state.title,
+          session: state.session,
+          doneMap: state.tasks.map(t => t.done)
+        }));
+      } catch (e) {}
+    }
+
+    loadSavedProgress();
+
+    const el = {
+      widgetCard: document.getElementById('widgetCard'),
+      displayTitle: document.getElementById('displayTitle'),
+      sessionBadge: document.getElementById('sessionBadge'),
+      modeLabel: document.getElementById('modeLabel'),
+      timerDisplay: document.getElementById('timerDisplay'),
+      progressTrack: document.getElementById('progressTrack'),
+      progressFill: document.getElementById('progressFill'),
+      timerControls: document.getElementById('timerControls'),
+      tasksSection: document.getElementById('tasksSection'),
+      statusDot: document.getElementById('statusDot'),
+      startPauseBtn: document.getElementById('startPauseBtn'),
+      switchModeBtn: document.getElementById('switchModeBtn'),
+      resetBtn: document.getElementById('resetBtn'),
+      taskList: document.getElementById('taskList'),
+      taskCounter: document.getElementById('taskCounter'),
+      petWrapper: document.getElementById('petWrapper'),
+      petStage: document.getElementById('petStage'),
+      petStats: document.getElementById('petStats'),
+      hungerVal: document.getElementById('hungerVal'),
+      happyVal: document.getElementById('happyVal'),
+      cleanVal: document.getElementById('cleanVal'),
+      petCareBar: document.getElementById('petCareBar'),
+      petActor: document.getElementById('petActor'),
+      petSvgWrap: document.getElementById('petSvgWrap'),
+      petBubble: document.getElementById('petBubble'),
+      petZzz: document.getElementById('petZzz'),
+      careTalkBtn: document.getElementById('careTalkBtn'),
+      careFeedBtn: document.getElementById('careFeedBtn'),
+      careBallBtn: document.getElementById('careBallBtn'),
+      careGameBtn: document.getElementById('careGameBtn'),
+      careBathBtn: document.getElementById('careBathBtn'),
+      careCleanBtn: document.getElementById('careCleanBtn'),
+      popoutBtn: document.getElementById('popoutBtn'),
+      notifyPermBtn: document.getElementById('notifyPermBtn'),
+      presetNameInput: document.getElementById('presetNameInput'),
+      savePresetBtn: document.getElementById('savePresetBtn'),
+      savedPresetsList: document.getElementById('savedPresetsList'),
+      themeSelect: document.getElementById('themeSelect'),
+      layoutSelect: document.getElementById('layoutSelect'),
+      borderSelect: document.getElementById('borderSelect'),
+      accentPicker: document.getElementById('accentPicker'),
+      fontSelect: document.getElementById('fontSelect'),
+      opacityRange: document.getElementById('opacityRange'),
+      opacityVal: document.getElementById('opacityVal'),
+      radiusRange: document.getElementById('radiusRange'),
+      radiusVal: document.getElementById('radiusVal'),
+      scaleRange: document.getElementById('scaleRange'),
+      scaleVal: document.getElementById('scaleVal'),
+      petSelect: document.getElementById('petSelect'),
+      petVariantSelect: document.getElementById('petVariantSelect'),
+      petNameInput: document.getElementById('petNameInput'),
+      petBehaviorSelect: document.getElementById('petBehaviorSelect'),
+      titleInput: document.getElementById('titleInput'),
+      soundSelect: document.getElementById('soundSelect'),
+      testSoundBtn: document.getElementById('testSoundBtn'),
+      focusMinsInput: document.getElementById('focusMinsInput'),
+      breakMinsInput: document.getElementById('breakMinsInput'),
+      goalSessionsInput: document.getElementById('goalSessionsInput'),
+      tasksInput: document.getElementById('tasksInput'),
+      showTasksChk: document.getElementById('showTasksChk'),
+      showProgressChk: document.getElementById('showProgressChk'),
+      showBadgeChk: document.getElementById('showBadgeChk'),
+      obsControlsChk: document.getElementById('obsControlsChk'),
+      obsCareChk: document.getElementById('obsCareChk'),
+      showStatsChk: document.getElementById('showStatsChk'),
+      breakPopupChk: document.getElementById('breakPopupChk'),
+      breakOnlyVisChk: document.getElementById('breakOnlyVisChk'),
+      copyObsBtn: document.getElementById('copyObsBtn'),
+      previewObsBtn: document.getElementById('previewObsBtn'),
+      copyFeedback: document.getElementById('copyFeedback'),
+      toggleSettingsBtn: document.getElementById('toggleSettingsBtn')
+    };
+
+    function hexToRgba(hex, alpha) {
+      const clean = hex.replace('#', '');
+      const r = parseInt(clean.substring(0, 2), 16);
+      const g = parseInt(clean.substring(2, 4), 16);
+      const b = parseInt(clean.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function buildPetSvg(species, variantId, sleeping) {
+      const list = PET_VARIANTS[species] || PET_VARIANTS.cat;
+      const v = list.find(x => x.id === variantId) || list[0];
+      if (!v || species === 'none') return '';
+      const eyes = sleeping
+        ? `<path d="M22 30 Q25 32 28 30" stroke="#1e293b" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M36 30 Q39 32 42 30" stroke="#1e293b" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+        : `<circle cx="25" cy="29" r="2.6" fill="#1e293b"/><circle cx="39" cy="29" r="2.6" fill="#1e293b"/><circle cx="24" cy="28" r="0.9" fill="#fff"/><circle cx="38" cy="28" r="0.9" fill="#fff"/>`;
+
+      if (species === 'cat') {
+        return `<svg viewBox="0 0 64 64"><polygon points="14,26 18,10 28,20" fill="${v.ear}"/><polygon points="50,26 46,10 36,20" fill="${v.ear}"/><ellipse cx="32" cy="36" rx="18" ry="15" fill="${v.main}"/><circle cx="22" cy="24" r="5" fill="${v.patch}" opacity="0.85"/><ellipse cx="32" cy="40" rx="9" ry="6" fill="${v.patch}" opacity="0.5"/>${eyes}<polygon points="30,33 34,33 32,35" fill="${v.cheek}"/><circle cx="19" cy="33" r="2.5" fill="${v.cheek}" opacity="0.65"/><circle cx="45" cy="33" r="2.5" fill="${v.cheek}" opacity="0.65"/></svg>`;
+      }
+      if (species === 'dog') {
+        return `<svg viewBox="0 0 64 64"><ellipse cx="15" cy="24" rx="5" ry="10" transform="rotate(-18 15 24)" fill="${v.ear}"/><ellipse cx="49" cy="24" rx="5" ry="10" transform="rotate(18 49 24)" fill="${v.ear}"/><ellipse cx="32" cy="36" rx="18" ry="15" fill="${v.main}"/><ellipse cx="32" cy="39" rx="10" ry="8" fill="${v.patch}"/>${eyes}<ellipse cx="32" cy="35" rx="3" ry="2.2" fill="#1e293b"/><circle cx="19" cy="34" r="2.5" fill="${v.cheek}" opacity="0.6"/></svg>`;
+      }
+      if (species === 'bird') {
+        return `<svg viewBox="0 0 64 64"><path d="M26 15 Q32 8 38 16" fill="${v.ear}"/><ellipse cx="32" cy="36" rx="16" ry="16" fill="${v.main}"/><ellipse cx="32" cy="29" rx="12" ry="9" fill="${v.ear}" opacity="0.9"/><ellipse cx="32" cy="42" rx="10" ry="8" fill="${v.patch}" opacity="0.85"/>${eyes}<polygon points="29,33 35,33 32,38" fill="#f59e0b"/><circle cx="20" cy="33" r="2.5" fill="${v.cheek}" opacity="0.7"/><circle cx="44" cy="33" r="2.5" fill="${v.cheek}" opacity="0.7"/></svg>`;
+      }
+      if (species === 'rabbit') {
+        return `<svg viewBox="0 0 64 64"><ellipse cx="23" cy="15" rx="4.5" ry="13" fill="${v.main}"/><ellipse cx="23" cy="16" rx="2.2" ry="9" fill="${v.ear}"/><ellipse cx="41" cy="15" rx="4.5" ry="13" fill="${v.main}"/><ellipse cx="41" cy="16" rx="2.2" ry="9" fill="${v.ear}"/><ellipse cx="32" cy="38" rx="17" ry="14" fill="${v.main}"/><ellipse cx="32" cy="43" rx="9" ry="6" fill="${v.patch}" opacity="0.8"/>${eyes}<circle cx="32" cy="34" r="2" fill="${v.cheek}"/><circle cx="19" cy="34" r="2.5" fill="${v.cheek}" opacity="0.6"/><circle cx="45" cy="34" r="2.5" fill="${v.cheek}" opacity="0.6"/></svg>`;
+      }
+      if (species === 'fish') {
+        return `<svg viewBox="0 0 64 64"><polygon points="44,34 58,23 58,45" fill="${v.ear}"/><ellipse cx="29" cy="34" rx="18" ry="13" fill="${v.main}"/><ellipse cx="26" cy="34" rx="8" ry="6" fill="${v.patch}" opacity="0.75"/><path d="M24 22 Q30 14 36 22" fill="${v.ear}"/><circle cx="21" cy="31" r="2.8" fill="#1e293b"/><circle cx="20" cy="30" r="1" fill="#fff"/><circle cx="18" cy="36" r="2.4" fill="${v.cheek}" opacity="0.7"/></svg>`;
+      }
+      if (species === 'fox') {
+        return `<svg viewBox="0 0 64 64"><polygon points="12,28 16,8 29,21" fill="${v.main}"/><polygon points="15,24 17,12 25,20" fill="${v.ear}"/><polygon points="52,28 48,8 35,21" fill="${v.main}"/><polygon points="49,24 47,12 39,20" fill="${v.ear}"/><ellipse cx="32" cy="37" rx="19" ry="14" fill="${v.main}"/><path d="M14 38 Q32 52 50 38 Q42 48 32 49 Q22 48 14 38 Z" fill="${v.patch}"/>${eyes}<circle cx="32" cy="36" r="2.5" fill="#1e293b"/><circle cx="19" cy="35" r="2.5" fill="${v.cheek}" opacity="0.6"/><circle cx="45" cy="35" r="2.5" fill="${v.cheek}" opacity="0.6"/></svg>`;
+      }
+      if (species === 'frog') {
+        return `<svg viewBox="0 0 64 64"><circle cx="21" cy="21" r="7" fill="${v.main}"/><circle cx="43" cy="21" r="7" fill="${v.main}"/><ellipse cx="32" cy="36" rx="20" ry="14" fill="${v.main}"/><ellipse cx="32" cy="41" rx="12" ry="7" fill="${v.patch}" opacity="0.85"/><circle cx="21" cy="21" r="2.8" fill="#1e293b"/><circle cx="43" cy="21" r="2.8" fill="#1e293b"/><circle cx="20" cy="20" r="1" fill="#fff"/><circle cx="42" cy="20" r="1" fill="#fff"/><path d="M25 33 Q32 37 39 33" stroke="#1e293b" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="17" cy="34" r="3" fill="${v.cheek}" opacity="0.65"/><circle cx="47" cy="34" r="3" fill="${v.cheek}" opacity="0.65"/></svg>`;
+      }
+      return `<svg viewBox="0 0 64 64"><circle cx="17" cy="22" r="6" fill="${v.ear}"/><circle cx="47" cy="22" r="6" fill="${v.ear}"/><ellipse cx="32" cy="36" rx="19" ry="16" fill="${v.main}"/><ellipse cx="32" cy="41" rx="11" ry="8" fill="${v.patch}"/>${eyes}<ellipse cx="32" cy="34" rx="2.5" ry="1.8" fill="#1e293b"/><circle cx="18" cy="35" r="4" fill="${v.cheek}" opacity="0.75"/><circle cx="46" cy="35" r="4" fill="${v.cheek}" opacity="0.75"/></svg>`;
+    }
+
+    function populateVariantDropdown() {
+      const variants = PET_VARIANTS[state.pet] || PET_VARIANTS.cat;
+      el.petVariantSelect.innerHTML = '';
+      variants.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id; opt.textContent = v.name;
+        el.petVariantSelect.appendChild(opt);
+      });
+      if (!variants.some(v => v.id === state.petVariant)) state.petVariant = variants[0].id;
+      el.petVariantSelect.value = state.petVariant;
+    }
+
+    function updatePetStatsUI() {
+      el.hungerVal.textContent = Math.max(0, Math.min(100, state.hunger));
+      el.happyVal.textContent = Math.max(0, Math.min(100, state.happy));
+      el.cleanVal.textContent = Math.max(0, Math.min(100, state.clean));
+    }
+
+    function renderPet() {
+      if (state.pet === 'none') { el.petWrapper.classList.add('hidden'); return; }
+      el.petWrapper.classList.remove('hidden');
+      const active = state.mode === 'break' || state.petBehavior === 'always';
+      el.petSvgWrap.innerHTML = buildPetSvg(state.pet, state.petVariant, !active);
+      el.petActor.classList.toggle('sleeping', !active);
+      el.petActor.classList.toggle('chaotic', active && state.pet !== 'fish');
+      el.petActor.classList.toggle('swimming', active && state.pet === 'fish');
+      el.petZzz.classList.toggle('hidden', active);
+      el.petStats.classList.toggle('hidden', !state.showStats);
+      el.petCareBar.classList.toggle('hide-in-obs', isObs && !state.obsCare);
+      updatePetStatsUI();
+    }
+
+    function showPetBubble(text) {
+      el.petBubble.textContent = text;
+      el.petBubble.classList.add('visible');
+      setTimeout(() => el.petBubble.classList.remove('visible'), 2200);
+    }
+
+    function spawnPetFx(emoji, count = 1) {
+      for (let i = 0; i < count; i++) {
+        const fx = document.createElement('span');
+        fx.className = 'pet-fx'; fx.textContent = emoji;
+        fx.style.left = `${30 + Math.random() * 40}%`;
+        fx.style.animationDelay = `${i * 0.12}s`;
+        el.petActor.appendChild(fx);
+        setTimeout(() => fx.remove(), 1100);
+      }
+    }
+
+    function spawnPoop() {
+      if (state.poopCount >= 2 || state.pet === 'none') return;
+      state.poopCount++;
+      state.clean = Math.max(20, state.clean - 30);
+      updatePetStatsUI();
+      const poop = document.createElement('span');
+      poop.className = 'pet-poop'; poop.textContent = '💩';
+      poop.style.right = `${14 + (state.poopCount - 1) * 22}px`;
+      poop.title = 'Click to clean!';
+      poop.addEventListener('click', () => cleanStage());
+      el.petStage.appendChild(poop);
+      showPetBubble('uh oh... clean pls!');
+    }
+
+    function cleanStage() {
+      const poops = el.petStage.querySelectorAll('.pet-poop');
+      if (poops.length === 0) { showPetBubble('Already spotless! ✨'); return; }
+      poops.forEach(p => p.remove());
+      state.poopCount = 0; state.clean = 100;
+      state.happy = Math.min(100, state.happy + 10);
+      updatePetStatsUI(); spawnPetFx('✨', 3); showPetBubble('So fresh! ♥');
+    }
+
+    el.careTalkBtn.addEventListener('click', () => {
+      const lines = TALK_LINES[state.pet] || ['Hi!'];
+      const line = lines[Math.floor(Math.random() * lines.length)];
+      state.happy = Math.min(100, state.happy + 5);
+      updatePetStatsUI(); spawnPetFx('💬');
+      showPetBubble(state.petName ? `${state.petName}: ${line}` : line);
+    });
+
+    el.careFeedBtn.addEventListener('click', () => {
+      state.hunger = Math.min(100, state.hunger + 20);
+      state.happy = Math.min(100, state.happy + 8);
+      updatePetStatsUI(); el.petActor.classList.add('happy');
+      spawnPetFx('🍓', 2); showPetBubble('Yum!! 🍓');
+      setTimeout(() => el.petActor.classList.remove('happy'), 700);
+      if (Math.random() < 0.4) setTimeout(spawnPoop, 2500);
+    });
+
+    el.careBallBtn.addEventListener('click', () => {
+      const ball = document.createElement('span');
+      ball.className = 'pet-ball'; ball.textContent = '⚽'; ball.style.left = '20px';
+      el.petStage.appendChild(ball);
+      const targetX = Math.max(60, el.petStage.clientWidth - 65);
+      setTimeout(() => {
+        ball.style.left = `${targetX}px`;
+        state.petPos = targetX - 10; el.petActor.style.left = `${state.petPos}px`;
+      }, 60);
+      state.happy = Math.min(100, state.happy + 15);
+      state.hunger = Math.max(10, state.hunger - 5);
+      updatePetStatsUI(); showPetBubble('Fetch!! ⚽');
+      setTimeout(() => ball.remove(), 1600);
+    });
+
+    el.careGameBtn.addEventListener('click', () => {
+      const star = document.createElement('span');
+      star.className = 'pet-star'; star.textContent = '⭐';
+      star.style.left = `${25 + Math.random() * 55}%`;
+      showPetBubble('Tap the ⭐!');
+      star.addEventListener('click', () => {
+        star.remove(); state.happy = Math.min(100, state.happy + 20);
+        updatePetStatsUI(); spawnPetFx('🎉', 3); showPetBubble('YOU WIN! +20 💖');
+      });
+      el.petStage.appendChild(star);
+      setTimeout(() => { if (star.parentNode) star.remove(); }, 3500);
+    });
+
+    el.careBathBtn.addEventListener('click', () => {
+      state.clean = 100; state.happy = Math.min(100, state.happy + 12);
+      el.petStage.querySelectorAll('.pet-poop').forEach(p => p.remove());
+      state.poopCount = 0; updatePetStatsUI();
+      spawnPetFx('🫧', 4); showPetBubble('Bubble bath! 🫧');
+    });
+
+    el.careCleanBtn.addEventListener('click', cleanStage);
+
+    // Floating Always-on-Top Pop-out (Document PiP with Popup fallback)
+    let activeFloatingWin = null;
+    async function openFloatingWindow(autoTriggered = false) {
+      if (activeFloatingWin && !activeFloatingWin.closed) {
+        try { activeFloatingWin.focus(); } catch (e) {}
+        return;
+      }
+      const pipUrl = buildObsUrl().replace('obs=true', 'pip=true');
+      if ('documentPictureInPicture' in window && !autoTriggered) {
+        try {
+          const pipWin = await window.documentPictureInPicture.requestWindow({
+            width: Math.round(420 * (state.scale / 100)),
+            height: Math.round(520 * (state.scale / 100))
+          });
+          activeFloatingWin = pipWin;
+          [...document.styleSheets].forEach(sheet => {
+            try {
+              const css = [...sheet.cssRules].map(r => r.cssText).join('\n');
+              const s = pipWin.document.createElement('style');
+              s.textContent = css;
+              pipWin.document.head.appendChild(s);
+            } catch (e) {}
+          });
+          pipWin.document.body.className = 'pip-mode';
+          const clone = el.widgetCard.cloneNode(true);
+          pipWin.document.body.appendChild(clone);
+          el.copyFeedback.textContent = 'Always-on-Top window opened!';
+          return;
+        } catch (e) {}
+      }
+      activeFloatingWin = window.open(pipUrl, 'CozyPetFloating', `popup=yes,width=${Math.round(430 * (state.scale / 100))},height=${Math.round(540 * (state.scale / 100))}`);
+      if (activeFloatingWin) {
+        activeFloatingWin.focus();
+      } else if (!autoTriggered) {
+        el.copyFeedback.textContent = 'Allow pop-ups in browser to open floating window.';
+      }
+    }
+
+    el.toggleSettingsBtn.addEventListener('click', () => { document.body.classList.toggle('settings-hidden'); });
+    el.popoutBtn.addEventListener('click', () => openFloatingWindow(false));
+
+    el.notifyPermBtn.addEventListener('click', async () => {
+      if (!('Notification' in window)) {
+        el.copyFeedback.textContent = 'Browser notifications not supported here.';
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      el.copyFeedback.textContent = perm === 'granted' ? 'Break Alerts enabled!' : 'Notifications blocked by browser.';
+    });
+
+    function triggerBreakAlert() {
+      if (state.breakPopup) openFloatingWindow(true);
+      try { window.focus(); } catch (e) {}
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`${state.title} — Break Time!`, {
+          body: `${state.petName || 'Your pet'} says it's time to stretch and take a ${state.breakMins}m break!`
+        });
+      }
+    }
+
+    setInterval(() => {
+      if (state.pet === 'none') return;
+      if (Math.random() < 0.2) {
+        state.hunger = Math.max(10, state.hunger - 2);
+        state.happy = Math.max(10, state.happy - 1);
+        updatePetStatsUI();
+      }
+      const active = state.mode === 'break' || state.petBehavior === 'always';
+      if (!active) return;
+      const maxLeft = Math.max(40, el.petStage.clientWidth - 62);
+      state.petPos += state.petDir * (36 + Math.random() * 44);
+      if (state.petPos >= maxLeft) { state.petPos = maxLeft; state.petDir = -1; }
+      else if (state.petPos <= 14) { state.petPos = 14; state.petDir = 1; }
+      el.petActor.style.left = `${state.petPos}px`;
+      if (Math.random() < 0.35) {
+        const lines = TALK_LINES[state.pet] || ['Break time!'];
+        const pick = lines[Math.floor(Math.random() * lines.length)];
+        showPetBubble(state.petName ? `${state.petName}: ${pick}` : pick);
+      }
+    }, 2000);
+
+    el.petActor.addEventListener('click', () => {
+      el.petActor.classList.add('happy');
+      state.happy = Math.min(100, state.happy + 6);
+      updatePetStatsUI(); spawnPetFx('♥', 2);
+      showPetBubble(state.petName ? `${state.petName} ♥` : '♥');
+      setTimeout(() => el.petActor.classList.remove('happy'), 750);
+    });
+
+    function getSavedPresets() {
+      try { return JSON.parse(localStorage.getItem(PRESET_STORAGE_KEY) || '[]'); }
+      catch (e) { return []; }
+    }
+
+    function renderSavedPresets() {
+      const list = getSavedPresets();
+      el.savedPresetsList.innerHTML = '';
+      list.forEach((p, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'saved-chip';
+        const label = document.createElement('span');
+        label.textContent = p.name;
+        label.addEventListener('click', () => applyPresetObject(p.data));
+        const del = document.createElement('button');
+        del.textContent = '×'; del.title = 'Delete preset';
+        del.addEventListener('click', () => {
+          const updated = getSavedPresets().filter((_, i) => i !== idx);
+          try { localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(updated)); } catch (e) {}
+          renderSavedPresets();
+        });
+        chip.appendChild(label); chip.appendChild(del);
+        el.savedPresetsList.appendChild(chip);
+      });
+    }
+
+    function applyPresetObject(p) {
+      Object.assign(state, p);
+      if (typeof p.tasksText === 'string') {
+        state.tasks = p.tasksText.split('\n').map(s => s.trim()).filter(Boolean).map(t => ({ text: t, done: false }));
+        el.tasksInput.value = p.tasksText;
+      }
+      el.themeSelect.value = state.theme;
+      el.accentPicker.value = state.accent || (THEMES[state.theme] || THEMES.matcha).accent;
+      el.fontSelect.value = state.font;
+      el.layoutSelect.value = state.layout;
+      el.borderSelect.value = state.border;
+      el.opacityRange.value = state.opacity; el.opacityVal.textContent = state.opacity;
+      el.radiusRange.value = state.radius; el.radiusVal.textContent = state.radius;
+      el.scaleRange.value = state.scale; el.scaleVal.textContent = state.scale;
+      el.petSelect.value = state.pet;
+      populateVariantDropdown();
+      el.petNameInput.value = state.petName;
+      el.petBehaviorSelect.value = state.petBehavior;
+      el.titleInput.value = state.title;
+      el.soundSelect.value = state.sound;
+      el.focusMinsInput.value = state.focusMins;
+      el.breakMinsInput.value = state.breakMins;
+      el.goalSessionsInput.value = state.goalSessions;
+      state.secondsLeft = state.focusMins * 60;
+      saveProgress(); applyVisuals(); renderTasks(); renderTimer();
+    }
+
+    el.savePresetBtn.addEventListener('click', () => {
+      const name = el.presetNameInput.value.trim() || `Preset ${getSavedPresets().length + 1}`;
+      const list = getSavedPresets();
+      list.push({
+        name,
+        data: {
+          theme: state.theme, accent: state.accent, font: state.font,
+          layout: state.layout, border: state.border, opacity: state.opacity,
+          radius: state.radius, scale: state.scale, pet: state.pet, petVariant: state.petVariant,
+          petName: state.petName, petBehavior: state.petBehavior,
+          title: state.title, sound: state.sound, focusMins: state.focusMins,
+          breakMins: state.breakMins, goalSessions: state.goalSessions,
+          tasksText: el.tasksInput.value
+        }
+      });
+      try { localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+      el.presetNameInput.value = '';
+      renderSavedPresets();
+    });
+
+    document.querySelectorAll('[data-preset]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = PRESETS[btn.dataset.preset];
+        if (!p) return;
+        applyPresetObject({ ...p, accent: (THEMES[p.theme] || THEMES.matcha).accent, tasksText: p.tasks });
+      });
+    });
+
+    function applyVisuals() {
+      const t = THEMES[state.theme] || THEMES.matcha;
+      const accent = state.accent || t.accent;
+      const root = document.documentElement.style;
+      root.setProperty('--bg-card-rgb', t.rgb);
+      root.setProperty('--bg-opacity', (state.opacity / 100).toFixed(2));
+      root.setProperty('--border-color', accent);
+      root.setProperty('--accent', accent);
+      root.setProperty('--accent-soft', hexToRgba(accent, 0.16));
+      root.setProperty('--text-main', t.text);
+      root.setProperty('--text-muted', t.muted);
+      root.setProperty('--item-bg', t.item);
+      root.setProperty('--timer-bg', t.timer);
+      root.setProperty('--btn-text', t.btnText);
+      root.setProperty('--font-active', FONTS[state.font] || FONTS.mono);
+      root.setProperty('--radius', `${state.radius}px`);
+      root.setProperty('--widget-scale', (state.scale / 100).toFixed(2));
+
+      el.widgetCard.classList.remove('compact', 'pill', 'border-dashed', 'border-minimal', 'border-pixel', 'break-only-hidden');
+      if (state.layout === 'compact') el.widgetCard.classList.add('compact');
+      if (state.layout === 'pill') el.widgetCard.classList.add('pill');
+      if (state.border === 'dashed') el.widgetCard.classList.add('border-dashed');
+      if (state.border === 'minimal') el.widgetCard.classList.add('border-minimal');
+      if (state.border === 'pixel') el.widgetCard.classList.add('border-pixel');
+      if (state.breakOnlyVis && state.mode === 'focus') el.widgetCard.classList.add('break-only-hidden');
+
+      el.tasksSection.classList.toggle('hidden', !state.showTasks);
+      el.progressTrack.classList.toggle('hidden', !state.showProgress);
+      el.sessionBadge.classList.toggle('hidden', !state.showBadge);
+      el.timerControls.classList.toggle('hide-in-obs', isObs && !state.obsControls);
+      renderPet();
+    }
+
+    function playChime(type) {
+      if (type === 'mute') return;
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        const presets = {
+          bell: { wave: 'sine', notes: [587.33, 880], step: 0.12, vol: 0.07 },
+          '8bit': { wave: 'square', notes: [523.25, 659.25, 783.99], step: 0.1, vol: 0.035 },
+          chord: { wave: 'sine', notes: [440, 554.37, 659.25], step: 0, vol: 0.06 },
+          lofi: { wave: 'triangle', notes: [392, 493.88, 587.33], step: 0.14, vol: 0.07 },
+          fanfare: { wave: 'triangle', notes: [523.25, 659.25, 783.99, 1046.5], step: 0.09, vol: 0.06 }
+        };
+        const cfg = presets[type] || presets.bell;
+        cfg.notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = cfg.wave;
+          const start = now + i * cfg.step;
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(cfg.vol, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.48);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(start); osc.stop(start + 0.5);
+        });
+      } catch (e) {}
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function renderTasks() {
+      el.taskList.innerHTML = '';
+      let doneCount = 0;
+      state.tasks.forEach((task, idx) => {
+        if (task.done) doneCount++;
+        const li = document.createElement('li');
+        li.className = `task-item ${task.done ? 'done' : ''}`;
+        li.innerHTML = `<span class="task-check">${task.done ? '✓' : ''}</span><span class="task-text"></span>`;
+        li.querySelector('.task-text').textContent = task.text;
+        li.addEventListener('click', () => {
+          state.tasks[idx].done = !state.tasks[idx].done;
+          saveProgress(); renderTasks();
+        });
+        el.taskList.appendChild(li);
+      });
+      el.taskCounter.textContent = `${doneCount}/${state.tasks.length}`;
+    }
+
+    function renderTimer() {
+      const total = (state.mode === 'focus' ? state.focusMins : state.breakMins) * 60;
+      const pct = Math.max(0, Math.min(100, (state.secondsLeft / total) * 100));
+      el.timerDisplay.textContent = formatTime(state.secondsLeft);
+      el.progressFill.style.width = `${pct}%`;
+      el.modeLabel.textContent = state.mode === 'focus' ? 'FOCUS TIME' : 'BREAK TIME';
+      el.sessionBadge.textContent = `SESSION ${state.session}/${state.goalSessions}`;
+      el.displayTitle.textContent = state.title || 'COZY FOCUS';
+      el.statusDot.classList.toggle('paused', !state.running);
+      el.startPauseBtn.textContent = state.running ? 'Pause' : 'Start';
+      el.switchModeBtn.textContent = state.mode === 'focus' ? 'Break' : 'Focus';
+    }
+
+    setInterval(() => {
+      if (!state.running) return;
+      if (state.secondsLeft > 0) {
+        state.secondsLeft--;
+      } else {
+        playChime(state.sound);
+        if (state.mode === 'focus') {
+          state.mode = 'break';
+          state.secondsLeft = state.breakMins * 60;
+          showPetBubble('BREAK TIME!!');
+          triggerBreakAlert();
+        } else {
+          state.mode = 'focus';
+          state.session = state.session < state.goalSessions ? state.session + 1 : 1;
+          state.secondsLeft = state.focusMins * 60;
+          saveProgress();
+        }
+        applyVisuals();
+      }
+      renderTimer();
+    }, 1000);
+
+    el.startPauseBtn.addEventListener('click', () => { state.running = !state.running; renderTimer(); });
+    el.switchModeBtn.addEventListener('click', () => {
+      state.mode = state.mode === 'focus' ? 'break' : 'focus';
+      state.secondsLeft = (state.mode === 'focus' ? state.focusMins : state.breakMins) * 60;
+      applyVisuals();
+      if (state.mode === 'break') { showPetBubble('BREAK TIME!!'); triggerBreakAlert(); }
+      renderTimer();
+    });
+    el.resetBtn.addEventListener('click', () => {
+      state.running = false;
+      state.secondsLeft = (state.mode === 'focus' ? state.focusMins : state.breakMins) * 60;
+      renderTimer();
+    });
+    el.testSoundBtn.addEventListener('click', () => playChime(state.sound));
+
+    el.themeSelect.addEventListener('change', () => {
+      state.theme = el.themeSelect.value;
+      const presetAccent = (THEMES[state.theme] || THEMES.matcha).accent;
+      state.accent = presetAccent; el.accentPicker.value = presetAccent;
+      applyVisuals();
+    });
+
+    el.accentPicker.addEventListener('input', () => { state.accent = el.accentPicker.value; applyVisuals(); });
+    el.petSelect.addEventListener('change', () => { state.pet = el.petSelect.value; populateVariantDropdown(); renderPet(); });
+    el.petVariantSelect.addEventListener('change', () => { state.petVariant = el.petVariantSelect.value; renderPet(); });
+
+    function syncInputs() {
+      state.layout = el.layoutSelect.value;
+      state.border = el.borderSelect.value;
+      state.font = el.fontSelect.value;
+      state.opacity = parseInt(el.opacityRange.value, 10); el.opacityVal.textContent = state.opacity;
+      state.radius = parseInt(el.radiusRange.value, 10); el.radiusVal.textContent = state.radius;
+      state.scale = parseInt(el.scaleRange.value, 10); el.scaleVal.textContent = state.scale;
+      state.petName = el.petNameInput.value.trim();
+      state.petBehavior = el.petBehaviorSelect.value;
+      state.title = el.titleInput.value.trim() || 'COZY FOCUS';
+      state.sound = el.soundSelect.value;
+      state.focusMins = Math.max(1, parseInt(el.focusMinsInput.value || '25', 10));
+      state.breakMins = Math.max(1, parseInt(el.breakMinsInput.value || '5', 10));
+      state.goalSessions = Math.max(1, parseInt(el.goalSessionsInput.value || '4', 10));
+      state.showTasks = el.showTasksChk.checked;
+      state.showProgress = el.showProgressChk.checked;
+      state.showBadge = el.showBadgeChk.checked;
+      state.obsControls = el.obsControlsChk.checked;
+      state.obsCare = el.obsCareChk.checked;
+      state.showStats = el.showStatsChk.checked;
+      state.breakPopup = el.breakPopupChk.checked;
+      state.breakOnlyVis = el.breakOnlyVisChk.checked;
+      const lines = el.tasksInput.value.split('\n').map(s => s.trim()).filter(Boolean);
+      state.tasks = lines.map((t, i) => ({ text: t, done: state.tasks[i] && state.tasks[i].text === t ? state.tasks[i].done : false }));
+      state.running = false;
+      state.secondsLeft = (state.mode === 'focus' ? state.focusMins : state.breakMins) * 60;
+      saveProgress(); applyVisuals(); renderTasks(); renderTimer();
+    }
+
+    [
+      el.layoutSelect, el.borderSelect, el.fontSelect, el.opacityRange, el.radiusRange, el.scaleRange,
+      el.petNameInput, el.petBehaviorSelect, el.titleInput, el.soundSelect,
+      el.focusMinsInput, el.breakMinsInput, el.goalSessionsInput, el.tasksInput,
+      el.showTasksChk, el.showProgressChk, el.showBadgeChk, el.obsControlsChk,
+      el.obsCareChk, el.showStatsChk, el.breakPopupChk, el.breakOnlyVisChk
+    ].forEach(node => node.addEventListener('input', syncInputs));
+
+    function buildObsUrl() {
+      const url = new URL(window.location.href.split('?')[0]);
+      url.searchParams.set('obs', 'true');
+      url.searchParams.set('theme', state.theme);
+      url.searchParams.set('layout', state.layout);
+      url.searchParams.set('border', state.border);
+      if (state.accent) url.searchParams.set('accent', state.accent);
+      url.searchParams.set('font', state.font);
+      url.searchParams.set('opacity', state.opacity);
+      url.searchParams.set('radius', state.radius);
+      url.searchParams.set('scale', state.scale);
+      url.searchParams.set('pet', state.pet);
+      url.searchParams.set('petVariant', state.petVariant);
+      url.searchParams.set('petName', state.petName);
+      url.searchParams.set('petBehavior', state.petBehavior);
+      url.searchParams.set('title', state.title);
+      url.searchParams.set('sound', state.sound);
+      url.searchParams.set('focus', state.focusMins);
+      url.searchParams.set('break', state.breakMins);
+      url.searchParams.set('goal', state.goalSessions);
+      url.searchParams.set('showTasks', state.showTasks ? '1' : '0');
+      url.searchParams.set('showProgress', state.showProgress ? '1' : '0');
+      url.searchParams.set('showBadge', state.showBadge ? '1' : '0');
+      url.searchParams.set('obsControls', state.obsControls ? '1' : '0');
+      url.searchParams.set('obsCare', state.obsCare ? '1' : '0');
+      url.searchParams.set('showStats', state.showStats ? '1' : '0');
+      url.searchParams.set('breakPopup', state.breakPopup ? '1' : '0');
+      url.searchParams.set('breakOnlyVis', state.breakOnlyVis ? '1' : '0');
+      url.searchParams.set('tasks', state.tasks.map(t => t.text).join('|'));
+      return url.toString();
+    }
+
+    el.copyObsBtn.addEventListener('click', async () => {
+      const obsUrl = buildObsUrl();
+      try {
+        await navigator.clipboard.writeText(obsUrl);
+        el.copyFeedback.textContent = 'Copied OBS URL to clipboard!';
+      } catch (e) { el.copyFeedback.textContent = obsUrl; }
+    });
+
+    el.previewObsBtn.addEventListener('click', () => { window.open(buildObsUrl(), '_blank'); });
+
+    el.themeSelect.value = state.theme;
+    el.layoutSelect.value = state.layout;
+    el.borderSelect.value = state.border;
+    el.accentPicker.value = state.accent || (THEMES[state.theme] || THEMES.matcha).accent;
+    el.fontSelect.value = state.font;
+    el.opacityRange.value = state.opacity; el.opacityVal.textContent = state.opacity;
+    el.radiusRange.value = state.radius; el.radiusVal.textContent = state.radius;
+    el.scaleRange.value = state.scale; el.scaleVal.textContent = state.scale;
+    el.petSelect.value = state.pet;
+    populateVariantDropdown();
+    el.petNameInput.value = state.petName;
+    el.petBehaviorSelect.value = state.petBehavior;
+    el.titleInput.value = state.title;
+    el.soundSelect.value = state.sound;
+    el.focusMinsInput.value = state.focusMins;
+    el.breakMinsInput.value = state.breakMins;
+    el.goalSessionsInput.value = state.goalSessions;
+    el.tasksInput.value = state.tasks.map(t => t.text).join('\n');
+    el.showTasksChk.checked = state.showTasks;
+    el.showProgressChk.checked = state.showProgress;
+    el.showBadgeChk.checked = state.showBadge;
+    el.obsControlsChk.checked = state.obsControls;
+    el.obsCareChk.checked = state.obsCare;
+    el.showStatsChk.checked = state.showStats;
+    el.breakPopupChk.checked = state.breakPopup;
+    el.breakOnlyVisChk.checked = state.breakOnlyVis;
+    renderSavedPresets();
+    applyVisuals();
+    renderTasks();
+    renderTimer();
+  </script>
+</body>
+</html>
